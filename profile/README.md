@@ -1,112 +1,108 @@
 <div align="center">
 
-<img src="assets/wraith-logo.png" alt="Wraith Engine" width="260">
+<img src="assets/logo.png" alt="WarcraftXL" width="260">
 
-# Wraith Engine
+# WarcraftXL
 
-**Modern rendering, backported into the Wrath of the Lich King client.**
+**A modding framework for the World of Warcraft 3.3.5a client.**
 
 </div>
 
 <div align="center"><img src="assets/divider.svg" width="720" alt=""></div>
 
-Wraith Engine is bringing the retail **Legion 7.3.5** render path to the **WotLK 3.3.5a
-(build 12340)** client - modern models, modern shaders, and a real **Direct3D 12** device -
-without replacing the client, the data, or the protocol you already run.
+WarcraftXL - *Warcraft eXtension Layer* - loads into the running 3.3.5a (build 12340) client and
+gives mods a clean, typed way to talk to the engine. Same idea as **SKSE** for Skyrim or **RED4ext**
+for Cyberpunk 2077: the framework owns the hard, repetitive parts - getting into the process, the
+hook engine, client offsets, engine bindings, an event bus, file-format contracts - so your mods can
+just be features.
 
-**Think of it as Proton for WoW.** Today the engine *translates* modern (Cata+) model and shader
-structures into the format the old client understands, so you get modern content on screen *now*.
-The long game is the opposite: as we fully map the model and render systems, the translation layer
-retires and our **own renderer** takes over - until TLK's D3D9 draws nothing and the entire frame
-goes through D3D12.
-
-It's a compatibility shim that is **deliberately built to be thrown away in pieces.** That's the
-whole ambition.
-
-<div align="center"><img src="assets/divider.svg" width="720" alt=""></div>
-
-## The two phases
-
-Wraith Engine moves the client forward one subsystem at a time, so it stays playable the whole way.
-
-**Phase 1 - Translation (where we are).**
-Modern structures are *converted* into what the 3.3.5a engine already knows how to draw. The native
-D3D9 path stays in charge; we just feed it content it was never meant to handle. Maximum visible
-result, minimum native code - the fastest route to modern assets in-game.
-
-**Phase 2 - Native (where we're headed).**
-Every structure we fully understand stops being translated and starts being rendered directly by
-our own D3D12 renderer. The shims fall away subsystem by subsystem. End state: **100% native,
-D3D9 retired, the whole frame on D3D12.**
-
-The bridge between the two is understanding: you can't render something natively until you've fully
-mapped it. That's why reverse-engineering is the heart of this project - see [Documentation](#the-repositories).
+> **Core principle.** If something is needed everywhere and always works the same way, it belongs in
+> the core. Anything that's a *feature* - a decision, an effect, an editor - is a module. The core
+> stays small and reusable; the modules stay free to do whatever they want.
 
 <div align="center"><img src="assets/divider.svg" width="720" alt=""></div>
 
 ## How it works
 
-Wraith Engine lives *inside* the running client. No launcher replacement, no patched data files -
-just three pieces that hook the binary you already own:
+`WarcraftXL.dll` boots inside the client, brings up the hook engine, and raises a set of events. A
+**module** is a small, self-contained unit that subscribes to those events and uses the core's typed
+bindings to read and drive the game. Drop a module in, rebuild, and it's live - no separate injector,
+no patched data files.
 
-- **A patcher** that performs PE surgery on `Wow.exe` so the engine loads cleanly at startup.
-- **A core module** that brings up the hook engine and installs the model, shader, and texture
-  features (modern `MD21` models transcoded to the native contract; modern `BLS` shaders decoded
-  on the load path).
-- **A `d3d9.dll` proxy** that forwards the real device while forcing **D3D9On12** onto a D3D12
-  device Wraith Engine owns - the foothold the native renderer grows from.
+The core is four pillars, so a module never touches a raw address itself:
 
-Everything operates clean-room on a client you supply. No Blizzard code, no Blizzard assets.
+| Pillar | What it gives a module |
+|---|---|
+| **Offsets** | The curated client addresses and struct layouts. Internal - modules never include these directly. |
+| **Bindings** | Typed, zero-overhead calls into engine functions, plus an enumerable catalog of `{name, address, signature}`. |
+| **Events** | A lightweight event bus. A module subclasses `EventScript` and binds its own methods to engine events. |
+| **Assets** | In-memory contracts for the client's file formats (ADT, WMO, M2, WDT, WDL) - so modules read structured data, not byte soup. |
+
+A module is just this - bind in the constructor, react in the handler:
+
+```cpp
+class MyModule final : public wxl::events::EventScript {
+public:
+    MyModule() { on<&MyModule::OnEndScene>(wxl::events::Event::OnEndScene); }
+    void OnEndScene(const wxl::events::EndSceneArgs& a) { /* draw, read world, edit... */ }
+};
+MyModule g_myModule; // file-scope instance self-registers at load
+```
 
 <div align="center"><img src="assets/divider.svg" width="720" alt=""></div>
 
-## The repositories
+## What you can build
 
-This organization is split by purpose. Start wherever fits you:
+The framework ships with example modules that double as proof and as starting points:
+
+- **[wxl-mini-noggit](https://github.com/WarcraftXL/wxl-mini-noggit)** - an in-client map editor. Pick a doodad, then move, rotate, and scale it live with
+  a 3D gizmo, right inside the running game. *(ImGui + ImGuizmo.)*
+- **[wxl-unit-outline](https://github.com/WarcraftXL/wxl-unit-outline)** - a unit outline / highlight effect.
+- **[wxl-glue-unlock](https://github.com/WarcraftXL/wxl-no-gluexml)** - unlocks the glue (login) screen.
+
+If a map editor *inside the client* is the "hello world", you can imagine what is possible.
+
+<div align="center"><img src="assets/divider.svg" width="720" alt=""></div>
+
+## The organization
+
+Split by purpose - start wherever fits you:
 
 | Repository | What's inside |
 |---|---|
-| **Engine** | The client-side runtime - patcher, hooks, the M2 backport, the D3D12 path. The thing that runs. |
-| **Documentation** | The knowledge base. An integrated **Wiki** documenting our findings in our own words - format specs, structure layouts, and offsets - kept as the source of truth the code follows. |
+| **wxl-core** | The framework: the SDK (offsets, bindings, events, assets), the runtime. The thing that loads into the client. |
+| **Documentation** | The knowledge base - an integrated **Wiki** documenting our findings in our own words: format specs, structure layouts, offsets. The source of truth the code follows. |
 
-> Links land here as repositories go public. If you're looking for *how the engine actually works
-> under the hood*, the **Documentation Wiki** is the real map - the code follows it, not the other
-> way around.
+> Links land here as repositories go public.
 
 <div align="center"><img src="assets/divider.svg" width="720" alt=""></div>
 
-## Project status
+## Status
 
-Early, with deep foundations. The injection chain, the model backport, and the D3D9On12 → D3D12
-bridge are working; the modern shader path is live for a first target and widening. This is **Phase 1**
-- a working skeleton with a long, deliberate roadmap, not a finished product.
-
-If you're here for screenshots, come back in a while. If you're here to help map an engine, you're
-early in the best way.
+Early, with solid foundations. The injection chain, the four core pillars, and the first example
+modules/scripts are working. The SDK surface is still moving as more of the client gets mapped - expect
+sharp edges, and expect them to get filed down fast.
 
 <div align="center"><img src="assets/divider.svg" width="720" alt=""></div>
 
 ## Get involved
 
-Two skill sets move this forward fastest:
-
-- **Reverse engineers** - map new subsystems and record them in the Documentation Wiki. Every native
-  render path starts as an RE finding.
-- **Model & asset backporters** - stress the model translation against real modern assets and report
-  what renders wrong.
-
-New here? Read the Documentation Wiki first, then open an issue before any large change so we can
-agree where it lands.
+- **Module/Script authors** - build a feature against the SDK. The example modules/scripts are your template; the
+  event bus and the bindings are your toolkit.
+- **Reverse engineers** - map new client subsystems and record them in the Documentation Wiki. Every
+  new binding starts as an RE finding.
 
 <div align="center"><img src="assets/divider.svg" width="720" alt=""></div>
 
 <div align="center">
 
-**Wraith Engine is an interoperability project.** It distributes no Blizzard code and no game
-assets, and runs only against a client you supply and own - reading that client's own files at
-runtime. Reverse-engineering is limited to what is necessary for interoperability.
+**WarcraftXL is an interoperability project.** It distributes no Blizzard code and no game assets,
+and runs only against a client you supply and own, reading that client's own files at runtime.
+Reverse-engineering is limited to what is necessary for interoperability.
 
 World of Warcraft and Wrath of the Lich King are trademarks of Blizzard Entertainment.
 This project is not affiliated with or endorsed by Blizzard.
+
+Released under the **GNU General Public License v3.0**.
 
 </div>
