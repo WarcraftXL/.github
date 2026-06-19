@@ -94,6 +94,20 @@ sharp edges, and expect them to get filed down fast.
 
 <div align="center"><img src="assets/divider.svg" width="720" alt=""></div>
 
+## Support
+
+**WarcraftXL is free, and it always will be forever.**
+
+Nothing here is gated, and nothing ever
+will be. Sponsoring is completely optional - just a way to support the project and the time behind
+it, if you want to and can.
+
+<p align="center">
+  <a href="https://github.com/sponsors/iThorgrim"><img src="https://raw.githubusercontent.com/iThorgrim/ithorgrim/refs/heads/main/assets/sponsor.svg" alt="Sponsor iThorgrim" height="48"></a>
+</p>
+
+<div align="center"><img src="assets/divider.svg" width="720" alt=""></div>
+
 <div align="center">
 
 **WarcraftXL is an interoperability project.** It distributes no Blizzard code and no game assets,
